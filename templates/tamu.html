@@ -1,0 +1,480 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
+<div class="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 mt-2">
+    <div class="flex w-full md:w-auto gap-3">
+        <div class="relative flex-1 md:w-64">
+            <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-stone-400"></i>
+            <input type="text" id="searchInput" placeholder="Cari nama, meja, atau kategori..." class="w-full pl-9 pr-4 py-2 bg-white border border-stone-200 rounded-lg text-sm focus:outline-none focus:border-gold-500 focus:ring-1 focus:ring-gold-500 transition-all">
+        </div>
+        <button class="px-4 py-2 bg-white border border-stone-200 rounded-lg text-sm font-medium text-stone-600 hover:border-gold-500 hover:text-gold-600 flex items-center gap-2 transition-colors">
+            <i data-lucide="filter" class="w-4 h-4"></i> Filter
+        </button>
+    </div>
+
+    <div class="flex w-full md:w-auto gap-3">
+        <button onclick="openBroadcastModal()" class="flex-1 md:flex-none px-4 py-2 bg-charcoal-900 text-white rounded-lg text-sm font-medium hover:bg-charcoal-800 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-charcoal-900/20">
+            <i data-lucide="send" class="w-4 h-4"></i> Broadcast
+        </button>
+        <button onclick="generatePDF()" class="flex-1 md:flex-none px-4 py-2 bg-white border border-red-500 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors flex items-center justify-center gap-2">
+            <i data-lucide="file-text" class="w-4 h-4"></i> Download PDF
+        </button>
+        <button onclick="document.getElementById('modalTambah').classList.remove('hidden')" 
+                class="flex-1 md:flex-none px-4 py-2 bg-gold-500 text-white rounded-lg text-sm font-medium hover:bg-gold-600 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-gold-500/20">
+            <i data-lucide="plus" class="w-4 h-4"></i> Tambah Tamu
+        </button>
+    </div>
+</div>
+
+<div class="flex border-b border-stone-200 mb-6 overflow-x-auto">
+    <button onclick="filterTab(this, 'all')" class="tab-btn px-6 py-3 text-sm font-medium text-gold-600 border-b-2 border-gold-500 transition-colors cursor-pointer">Semua Tamu</button>
+    <button onclick="filterTab(this, 'VIP')" class="tab-btn px-6 py-3 text-sm font-medium text-stone-500 hover:text-charcoal-900 border-b-2 border-transparent hover:border-stone-300 transition-colors cursor-pointer">VIP & VVIP</button>
+    <button onclick="filterTab(this, 'Keluarga')" class="tab-btn px-6 py-3 text-sm font-medium text-stone-500 hover:text-charcoal-900 border-b-2 border-transparent hover:border-stone-300 transition-colors cursor-pointer">Keluarga</button>
+    <button onclick="filterTab(this, 'Teman')" class="tab-btn px-6 py-3 text-sm font-medium text-stone-500 hover:text-charcoal-900 border-b-2 border-transparent hover:border-stone-300 transition-colors cursor-pointer">Teman</button>
+</div>
+
+<div class="bg-white rounded-xl border border-stone-100 shadow-sm overflow-hidden">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm" id="tabelTamu">
+            <thead class="bg-stone-50 text-stone-500 border-b border-stone-100">
+                <tr>
+                    <th class="px-6 py-4 w-10"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAll(this)" class="rounded text-gold-500 border-stone-300 cursor-pointer"></th>
+                    <th class="px-6 py-4 font-medium">Nama Tamu</th>
+                    <th class="px-6 py-4 font-medium">Kategori</th>
+                    <th class="px-6 py-4 font-medium">Undangan & WA</th>
+                    <th class="px-6 py-4 font-medium">Meja</th>
+                    <th class="px-6 py-4 font-medium">RSVP Status</th>
+                    <th class="px-6 py-4 font-medium text-center">Waktu Check-in</th>
+                    <th class="px-6 py-4 font-medium text-right">Menu</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-stone-100">
+                {% for t in tamu %}
+                <tr class="hover:bg-cream-50/50 transition-colors group" data-kategori="{{ t.kategori }}">
+                    <td class="px-6 py-4">
+                        <input type="checkbox" class="row-checkbox rounded text-gold-500 border-stone-300 cursor-pointer" 
+                               value="{{ t.id }}" 
+                               data-nama="{{ t.nama }}" 
+                               data-hp="{{ t.no_hp }}">
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border border-white shadow-sm
+                                {% if t.kategori == 'VVIP' %}bg-charcoal-900 text-white
+                                {% elif t.kategori == 'VIP' %}bg-gold-100 text-gold-700
+                                {% elif t.kategori == 'Keluarga' %}bg-blue-100 text-blue-700
+                                {% else %}bg-stone-200 text-stone-600{% endif %}">
+                                {{ t.nama[:2].upper() }}
+                            </div>
+                            <div>
+                                <div class="font-medium text-charcoal-900">{{ t.nama }}</div>
+                                <div class="text-xs text-stone-400">{{ t.no_hp if t.no_hp else '-' }}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4">
+                        {% if t.kategori == 'VVIP' %}<span class="px-2 py-1 bg-charcoal-900 text-white text-xs rounded-md font-medium shadow-sm">VVIP</span>
+                        {% elif t.kategori == 'VIP' %}<span class="px-2 py-1 bg-gold-100 text-gold-700 text-xs rounded-md font-medium border border-gold-200">VIP</span>
+                        {% elif t.kategori == 'Keluarga' %}<span class="px-2 py-1 bg-blue-50 text-blue-600 text-xs rounded-md font-medium border border-blue-200">Keluarga</span>
+                        {% else %}<span class="px-2 py-1 bg-stone-100 text-stone-600 text-xs rounded-md font-medium border border-stone-200">{{ t.kategori }}</span>{% endif %}
+                    </td>
+                    <td class="px-6 py-4">
+                        <div class="flex items-center gap-2">
+                            <span class="text-xs text-stone-400 font-mono bg-stone-100 px-2 py-1 rounded select-all border border-stone-200">asira.id/inv/{{ "%03d" % t.id }}</span>
+                            <button onclick="openWaModal('{{ t.nama }}', '{{ t.no_hp }}', '{{ t.id }}')" class="p-1.5 bg-green-100 text-green-700 rounded hover:bg-green-200 transition-colors border border-green-200 shadow-sm" title="Preview Pesan WA"><i data-lucide="eye" class="w-4 h-4"></i></button>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4"><span class="text-stone-600 font-medium text-xs bg-stone-50 px-2 py-1 rounded border border-stone-200">Meja {{ t.meja if t.meja else '-' }}</span></td>
+                    <td class="px-6 py-4">
+                        {% if t.status_rsvp == 'Hadir' %}<span class="px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full border border-green-200">Going</span>
+                        {% elif t.status_rsvp == 'Tidak' %}<span class="px-2 py-1 bg-red-100 text-red-700 text-xs rounded-full border border-red-200">Batal</span>
+                        {% else %}<span class="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full border border-yellow-200">Pending</span>{% endif %}
+                    </td>
+                    <td class="px-6 py-4 text-center">{% if t.waktu_checkin %}<span class="text-green-700 font-bold font-mono text-sm bg-green-50 px-2 py-1 rounded border border-green-100">{{ t.waktu_checkin.strftime('%H:%M') }}</span>{% else %}<span class="text-stone-300 text-xl font-light">-</span>{% endif %}</td>
+                    <td class="px-6 py-4 text-right">
+                        <div class="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button onclick="openEditModal('{{ t.id }}', '{{ t.nama }}', '{{ t.kategori }}', '{{ t.meja }}', '{{ t.no_hp }}')" class="p-1.5 bg-yellow-50 text-yellow-600 rounded hover:bg-yellow-100 border border-yellow-200"><i data-lucide="pencil" class="w-4 h-4"></i></button>
+                            <a href="/hapus_tamu/{{ t.id }}" class="p-1.5 bg-red-50 text-red-500 rounded hover:bg-red-100 transition-colors" onclick="return confirm('Hapus data ini?')"><i data-lucide="trash-2" class="w-4 h-4"></i></a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div id="modalBroadcast" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+    <div class="bg-white w-full max-w-lg rounded-2xl p-6 shadow-2xl transform transition-transform scale-100 relative">
+        <div class="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
+            <div><h3 class="text-lg font-serif font-bold text-charcoal-900 flex items-center gap-2"><i data-lucide="radio" class="w-5 h-5 text-gold-500"></i> Broadcast Undangan</h3><p class="text-xs text-stone-500">Kirim pesan massal otomatis</p></div>
+            <button onclick="closeBroadcastModal()" class="text-stone-400 hover:text-charcoal-900 bg-stone-100 p-1.5 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        
+        <div id="broadcastConfig">
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-stone-500 mb-1 uppercase tracking-wide">Target Penerima</label>
+                    <select id="targetBroadcast" class="w-full px-4 py-2.5 border border-stone-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-1 focus:ring-gold-500">
+                        <option value="selected" id="optSelected" style="display:none; background-color: #f7f4eb; font-weight: bold;">Tamu Terpilih (0)</option>
+                        <option value="all">Semua Tamu ({{ tamu|length }})</option>
+                        <option value="Keluarga">Keluarga ({{ tamu | selectattr('kategori', 'equalto', 'Keluarga') | list | length }})</option>
+                        <option value="Teman">Teman ({{ tamu | selectattr('kategori', 'equalto', 'Teman') | list | length }})</option>
+                        <option value="VIP">VIP ({{ tamu | selectattr('kategori', 'equalto', 'VIP') | list | length }})</option>
+                        <option value="VVIP">VVIP ({{ tamu | selectattr('kategori', 'equalto', 'VVIP') | list | length }})</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-stone-500 mb-1 uppercase tracking-wide">Template Pesan</label>
+                    <textarea id="pesanBroadcast" oninput="handleTemplateInput(this.value)" rows="8" class="w-full px-4 py-3 border border-stone-200 rounded-lg text-sm font-mono focus:outline-none focus:ring-1 focus:ring-gold-500 leading-relaxed resize-none"></textarea>
+                    <p id="msgValidation" class="text-red-500 text-xs mt-1 hidden font-medium flex items-center gap-1"><i data-lucide="alert-circle" class="w-3 h-3"></i> Template tidak boleh kosong!</p>
+                </div>
+            </div>
+            <div class="pt-4 flex gap-3 border-t border-stone-100 mt-2">
+                <button type="button" id="btnCancelBroadcast" onclick="handleCancelOrSave()" class="flex-1 py-2.5 border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors">Batal</button>
+                <button type="button" id="btnKirimBroadcast" onclick="startAutoBroadcast()" class="flex-1 py-2.5 bg-green-600 text-white rounded-lg text-sm font-bold hover:bg-green-700 transition-colors flex items-center justify-center gap-2 shadow-lg shadow-green-600/20"><i data-lucide="play" class="w-4 h-4"></i> Mulai Kirim</button>
+            </div>
+        </div>
+
+        <div id="broadcastProgress" class="hidden text-center py-4">
+            <div class="mb-4">
+                <div class="w-16 h-16 border-4 border-green-200 border-t-green-500 rounded-full animate-spin mx-auto mb-3" id="spinnerIcon"></div>
+                <div class="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 hidden" id="successIcon"><i data-lucide="check" class="w-8 h-8"></i></div>
+                <h4 class="font-bold text-lg text-charcoal-900" id="progressTitle">Mengirim Pesan...</h4>
+                <p class="text-sm text-stone-500" id="progressText">Memproses 0 dari 0</p>
+                <p class="text-xs text-stone-400 mt-1" id="currentName">-</p>
+            </div>
+            <div class="w-full bg-stone-100 rounded-full h-2.5 mb-4 overflow-hidden"><div id="progressBar" class="bg-green-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div></div>
+            <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-xs text-yellow-800 text-left mb-4" id="warningBox"><p class="font-bold flex items-center gap-1"><i data-lucide="alert-triangle" class="w-3 h-3"></i> PENTING:</p><ul class="list-disc pl-4 mt-1 space-y-1"><li>Mohon <strong>IZINKAN POP-UP</strong> di browser Anda.</li><li>Jangan tutup halaman ini sampai selesai.</li><li>Sistem akan membuka tab WA setiap 3 detik.</li></ul></div>
+            <button id="btnStopBroadcast" onclick="stopBroadcast()" class="w-full py-2 bg-red-100 text-red-600 font-bold rounded-lg hover:bg-red-200 transition-colors">Hentikan</button>
+        </div>
+    </div>
+</div>
+
+<div id="modalTambah" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl transform transition-transform scale-100">
+        <div class="flex justify-between items-center mb-6 border-b border-stone-100 pb-4"><div><h3 class="text-lg font-serif font-bold text-charcoal-900">Tambah Tamu Baru</h3><p class="text-xs text-stone-500">Masukkan detail undangan</p></div><button onclick="document.getElementById('modalTambah').classList.add('hidden')" class="text-stone-400 hover:text-charcoal-900 bg-stone-100 p-1.5 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+        <form action="/tambah_tamu" method="POST" class="space-y-4">
+            <div><label class="block text-xs font-bold text-stone-500 mb-1 uppercase tracking-wide">Nama Lengkap</label><input type="text" name="nama" class="w-full px-4 py-2.5 border border-stone-200 rounded-lg text-sm" placeholder="Contoh: Bpk. Hartono" required></div>
+            <div class="grid grid-cols-2 gap-4"><div><label class="block text-xs font-bold text-stone-500 mb-1 uppercase tracking-wide">Kategori</label><select name="kategori" class="w-full px-4 py-2.5 border border-stone-200 rounded-lg text-sm bg-white"><option value="Teman">Teman</option><option value="Keluarga">Keluarga</option><option value="VIP">VIP</option><option value="VVIP">VVIP</option></select></div><div><label class="block text-xs font-bold text-stone-500 mb-1 uppercase tracking-wide">Nomor Meja</label><input type="text" name="meja" class="w-full px-4 py-2.5 border border-stone-200 rounded-lg text-sm" placeholder="A-01"></div></div>
+            <div><label class="block text-xs font-bold text-stone-500 mb-1 uppercase tracking-wide">Nomor WhatsApp</label><input type="text" name="no_hp" class="w-full px-4 py-2.5 border border-stone-200 rounded-lg text-sm" placeholder="0812..."></div>
+            <div class="pt-2"><button type="submit" class="w-full py-3 bg-gold-500 text-white font-bold rounded-lg hover:bg-gold-600 transition-all shadow-lg shadow-gold-500/30 flex items-center justify-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Simpan Data</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="modalEdit" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl transform transition-transform scale-100">
+        <div class="flex justify-between items-center mb-6 border-b border-stone-100 pb-4"><div><h3 class="text-lg font-serif font-bold text-charcoal-900">Edit Data Tamu</h3><p class="text-xs text-stone-500">Perbarui informasi undangan</p></div><button onclick="document.getElementById('modalEdit').classList.add('hidden')" class="text-stone-400 hover:text-charcoal-900 bg-stone-100 p-1.5 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+        <form id="formEdit" method="POST" class="space-y-4">
+            <input type="hidden" id="editId" name="id">
+            <div><label class="block text-xs font-bold text-stone-500 mb-1 uppercase tracking-wide">Nama Lengkap</label><input type="text" id="editNama" name="nama" class="w-full px-4 py-2.5 border border-stone-200 rounded-lg text-sm" required></div>
+            <div class="grid grid-cols-2 gap-4"><div><label class="block text-xs font-bold text-stone-500 mb-1 uppercase tracking-wide">Kategori</label><select id="editKategori" name="kategori" class="w-full px-4 py-2.5 border border-stone-200 rounded-lg text-sm bg-white"><option value="Teman">Teman</option><option value="Keluarga">Keluarga</option><option value="VIP">VIP</option><option value="VVIP">VVIP</option></select></div><div><label class="block text-xs font-bold text-stone-500 mb-1 uppercase tracking-wide">Nomor Meja</label><input type="text" id="editMeja" name="meja" class="w-full px-4 py-2.5 border border-stone-200 rounded-lg text-sm"></div></div>
+            <div><label class="block text-xs font-bold text-stone-500 mb-1 uppercase tracking-wide">Nomor WhatsApp</label><input type="text" id="editHp" name="no_hp" class="w-full px-4 py-2.5 border border-stone-200 rounded-lg text-sm"></div>
+            <div class="pt-2"><button type="submit" class="w-full py-3 bg-yellow-500 text-white font-bold rounded-lg hover:bg-yellow-600 transition-all shadow-lg shadow-yellow-500/30 flex items-center justify-center gap-2"><i data-lucide="save" class="w-4 h-4"></i> Update Data</button></div>
+        </form>
+    </div>
+</div>
+
+<div id="modalWa" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center backdrop-blur-sm transition-opacity">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl transform transition-transform scale-100">
+        <div class="flex justify-between items-center mb-4 border-b border-stone-100 pb-4"><h3 class="text-lg font-serif font-bold text-charcoal-900 flex items-center gap-2"><i data-lucide="message-circle" class="w-5 h-5 text-green-600"></i> Preview Pesan</h3><button onclick="closeWaModal()" class="text-stone-400 hover:text-charcoal-900 bg-stone-100 p-1.5 rounded-full transition-colors"><i data-lucide="x" class="w-5 h-5"></i></button></div>
+        <div class="bg-stone-50 p-4 rounded-lg border border-stone-200 text-sm text-charcoal-900 whitespace-pre-line mb-6 font-mono leading-relaxed" id="waMessagePreview"></div>
+        <div class="flex gap-3"><button onclick="closeWaModal()" class="w-full py-2.5 border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors">Tutup</button></div>
+    </div>
+</div>
+
+<script>
+    // --- PDF GENERATION ---
+    const allGuests = [
+        {% for t in tamu %}
+        { 
+            nama: "{{ t.nama }}", 
+            kategori: "{{ t.kategori }}", 
+            meja: "{{ t.meja if t.meja else '-' }}", 
+            status: "{{ t.status_rsvp }}",
+            waktu: "{% if t.waktu_checkin %}{{ t.waktu_checkin.strftime('%H:%M') }}{% else %}-{% endif %}"
+        },
+        {% endfor %}
+    ];
+
+    function generatePDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        doc.setFont("helvetica", "bold"); doc.setFontSize(18); doc.setTextColor(44, 62, 80);
+        doc.text("Laporan Data Tamu Undangan", 14, 20);
+        doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.setTextColor(100);
+        doc.text("Pernikahan Rigan & Arsya", 14, 26);
+        doc.text(`Dicetak pada: ${new Date().toLocaleDateString('id-ID')}`, 14, 31);
+
+        let counts = { "VVIP": 0, "VIP": 0, "Keluarga": 0, "Teman": 0, "Reguler": 0 };
+        allGuests.forEach(g => { if (counts[g.kategori] !== undefined) counts[g.kategori]++; else counts["Reguler"]++; });
+
+        doc.autoTable({
+            startY: 40, head: [['Kategori', 'Jumlah']],
+            body: [ ["VVIP", counts["VVIP"]], ["VIP", counts["VIP"]], ["Keluarga", counts["Keluarga"]], ["Teman", counts["Teman"]], ["Total", allGuests.length] ],
+            theme: 'grid', headStyles: { fillColor: [212, 175, 55] }, styles: { fontSize: 9 }, tableWidth: 80, margin: { left: 14 }
+        });
+
+        let lastY = doc.lastAutoTable.finalY + 15;
+        const createCategoryTable = (title, categoryFilter) => {
+            let data = allGuests.filter(g => g.kategori === categoryFilter);
+            if (data.length === 0) return;
+            if (lastY > 250) { doc.addPage(); lastY = 20; }
+            doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.setTextColor(0);
+            doc.text(`${title} (${data.length} Orang)`, 14, lastY);
+            doc.autoTable({
+                startY: lastY + 3, head: [['Nama Tamu', 'Meja', 'Status RSVP', 'Check-in']],
+                body: data.map(g => [g.nama, g.meja, g.status, g.waktu]),
+                theme: 'striped', headStyles: { fillColor: [44, 44, 44] }, styles: { fontSize: 9 },
+            });
+            lastY = doc.lastAutoTable.finalY + 10;
+        };
+        createCategoryTable("Daftar Tamu VVIP", "VVIP"); createCategoryTable("Daftar Tamu VIP", "VIP");
+        createCategoryTable("Daftar Keluarga", "Keluarga"); createCategoryTable("Daftar Teman", "Teman");
+        doc.save("Laporan_Tamu_Asira.pdf");
+    }
+
+    // --- VARIABLES & STORAGE ---
+    let broadcastQueue = [];
+    let isBroadcasting = false;
+    let savedTemplate = "";
+    const defaultTemplate = `Kepada Yth. {nama_tamu},
+
+Kami mengundang Anda untuk hadir di pernikahan Rigan & Arsya. Mohon konfirmasi kehadiran melalui link berikut:
+{link_undangan}
+
+Terima kasih.`;
+
+    document.addEventListener("DOMContentLoaded", function() {
+        let stored = localStorage.getItem("broadcastTemplate");
+        if (!stored) { stored = defaultTemplate; localStorage.setItem("broadcastTemplate", stored); }
+        savedTemplate = stored;
+        document.getElementById("pesanBroadcast").value = savedTemplate;
+    });
+
+    function formatPhoneNumber(number) {
+        if(!number) return "";
+        let formatted = number.replace(/\D/g, ''); 
+        if (formatted.startsWith('0')) formatted = '62' + formatted.slice(1);
+        return formatted;
+    }
+
+    // --- LOGIKA UTAMA MODAL ---
+    function handleTemplateInput(val) {
+        const btnKirim = document.getElementById("btnKirimBroadcast");
+        const btnCancel = document.getElementById("btnCancelBroadcast");
+        const msgVal = document.getElementById("msgValidation");
+
+        if (!val.trim()) {
+            btnKirim.disabled = true; btnKirim.classList.add("opacity-50", "cursor-not-allowed"); msgVal.classList.remove("hidden");
+            btnCancel.innerText = "Batal";
+        } else {
+            btnKirim.disabled = false; btnKirim.classList.remove("opacity-50", "cursor-not-allowed"); msgVal.classList.add("hidden");
+            if (val !== savedTemplate) {
+                btnCancel.innerText = "Simpan";
+                btnCancel.classList.remove("text-stone-600", "hover:bg-stone-50", "border-stone-200");
+                btnCancel.classList.add("text-blue-600", "bg-blue-50", "border-blue-200");
+            } else {
+                btnCancel.innerText = "Batal";
+                btnCancel.classList.remove("text-blue-600", "bg-blue-50", "border-blue-200");
+                btnCancel.classList.add("text-stone-600", "hover:bg-stone-50", "border-stone-200");
+            }
+        }
+    }
+
+    function handleCancelOrSave() {
+        const btn = document.getElementById("btnCancelBroadcast");
+        const currentVal = document.getElementById("pesanBroadcast").value;
+
+        if (btn.innerText === "Simpan") {
+            // SIMPAN DATA, LALU TUTUP
+            localStorage.setItem("broadcastTemplate", currentVal);
+            savedTemplate = currentVal;
+            // Reset UI tombol
+            btn.innerText = "Batal";
+            btn.classList.remove("text-blue-600", "bg-blue-50", "border-blue-200");
+            btn.classList.add("text-stone-600", "hover:bg-stone-50", "border-stone-200");
+            // TUTUP MODAL (PERUBAHAN UTAMA)
+            document.getElementById('modalBroadcast').classList.add('hidden');
+        } else {
+            // BATAL, RESET INPUT, TUTUP
+            document.getElementById("pesanBroadcast").value = savedTemplate;
+            document.getElementById('modalBroadcast').classList.add('hidden');
+        }
+    }
+
+    // Fungsi Close (X) - Sama seperti Batal/Reset
+    function closeBroadcastModal() {
+        // Reset input ke saved state sebelum menutup
+        document.getElementById("pesanBroadcast").value = savedTemplate;
+        // Reset tombol ke 'Batal' style
+        const btn = document.getElementById("btnCancelBroadcast");
+        btn.innerText = "Batal";
+        btn.classList.remove("text-blue-600", "bg-blue-50", "border-blue-200");
+        btn.classList.add("text-stone-600", "hover:bg-stone-50", "border-stone-200");
+        // Tutup
+        document.getElementById('modalBroadcast').classList.add('hidden');
+    }
+
+    function openBroadcastModal() {
+        const checkedBoxes = document.querySelectorAll('.row-checkbox:checked');
+        const count = checkedBoxes.length;
+        const optSelected = document.getElementById('optSelected');
+        const selectBox = document.getElementById('targetBroadcast');
+        
+        if (count > 0) {
+            optSelected.style.display = 'block'; optSelected.innerText = `Tamu Terpilih (${count})`; selectBox.value = 'selected';
+        } else {
+            optSelected.style.display = 'none'; selectBox.value = 'all';
+        }
+        document.getElementById("pesanBroadcast").value = savedTemplate;
+        handleTemplateInput(savedTemplate); 
+        document.getElementById('modalBroadcast').classList.remove('hidden');
+    }
+
+    // --- AUTO BROADCAST ---
+    function startAutoBroadcast() {
+        const targetType = document.getElementById('targetBroadcast').value;
+        const template = document.getElementById("pesanBroadcast").value;
+        const rows = document.querySelectorAll("#tabelTamu tbody tr");
+        broadcastQueue = [];
+
+        const btnStop = document.getElementById('btnStopBroadcast');
+        btnStop.innerText = "Hentikan";
+        btnStop.className = "w-full py-2 bg-red-100 text-red-600 font-bold rounded-lg hover:bg-red-200 transition-colors";
+        btnStop.onclick = stopBroadcast;
+        
+        document.getElementById('spinnerIcon').classList.remove('hidden');
+        document.getElementById('successIcon').classList.add('hidden');
+        document.getElementById('progressTitle').innerText = "Mengirim Pesan...";
+        document.getElementById('warningBox').classList.remove('hidden');
+
+        rows.forEach(row => {
+            const checkbox = row.querySelector('.row-checkbox');
+            if(checkbox) {
+                const nama = checkbox.getAttribute('data-nama');
+                const hp = checkbox.getAttribute('data-hp');
+                const id = checkbox.value;
+                const kategori = row.getAttribute('data-kategori') || "";
+
+                let isValid = false;
+                if (targetType === 'selected') { if (checkbox.checked) isValid = true; } 
+                else if (targetType === 'all') { isValid = true; } 
+                else { if (kategori.includes(targetType)) isValid = true; }
+
+                if (isValid && hp && hp.length > 5) {
+                    let cleanHp = formatPhoneNumber(hp);
+                    let formattedId = id.toString().padStart(3, '0');
+                    let link = `asira.id/inv/${formattedId}`;
+                    let message = template.replace("{nama_tamu}", nama).replace("{link_undangan}", link);
+                    let encodedMsg = encodeURIComponent(message);
+                    let finalUrl = `https://wa.me/${cleanHp}?text=${encodedMsg}`;
+                    broadcastQueue.push({ nama: nama, url: finalUrl });
+                }
+            }
+        });
+
+        if (broadcastQueue.length === 0) { alert("Tidak ada tamu valid."); return; }
+
+        document.getElementById('broadcastConfig').classList.add('hidden');
+        document.getElementById('broadcastProgress').classList.remove('hidden');
+        isBroadcasting = true;
+        processQueue(0);
+    }
+
+    function processQueue(index) {
+        if (!isBroadcasting) return;
+        if (index >= broadcastQueue.length) {
+            isBroadcasting = false;
+            document.getElementById('progressTitle').innerText = "Broadcast Selesai!";
+            document.getElementById('progressText').innerText = "Semua pesan telah diproses.";
+            document.getElementById('currentName').innerText = "Sukses";
+            document.getElementById('progressBar').style.width = "100%";
+            document.getElementById('spinnerIcon').classList.add('hidden');
+            document.getElementById('successIcon').classList.remove('hidden');
+            document.getElementById('warningBox').classList.add('hidden');
+
+            const btnStop = document.getElementById('btnStopBroadcast');
+            btnStop.innerText = "Selesai & Tutup";
+            btnStop.className = "w-full py-2 bg-green-500 text-white font-bold rounded-lg hover:bg-green-600 transition-colors shadow-lg";
+            btnStop.onclick = function() {
+                document.getElementById('modalBroadcast').classList.add('hidden'); 
+                setTimeout(() => {
+                    document.getElementById('broadcastConfig').classList.remove('hidden');
+                    document.getElementById('broadcastProgress').classList.add('hidden');
+                }, 500);
+            };
+            return;
+        }
+        const currentItem = broadcastQueue[index];
+        const total = broadcastQueue.length;
+        document.getElementById('progressText').innerText = `Memproses pesan ${index + 1} dari ${total}`;
+        document.getElementById('currentName').innerText = `Mengirim ke: ${currentItem.nama}`;
+        document.getElementById('progressBar').style.width = `${((index + 1) / total) * 100}%`;
+        const win = window.open(currentItem.url, '_blank');
+        if (!win) { alert("⚠️ Pop-up diblokir!"); stopBroadcast(); return; }
+        setTimeout(() => { processQueue(index + 1); }, 3000); 
+    }
+
+    function stopBroadcast() {
+        isBroadcasting = false;
+        document.getElementById('modalBroadcast').classList.add('hidden'); 
+        setTimeout(() => {
+            document.getElementById('broadcastConfig').classList.remove('hidden');
+            document.getElementById('broadcastProgress').classList.add('hidden');
+        }, 500);
+    }
+
+    // --- OTHER HELPERS ---
+    function openWaModal(nama, noHp, id) {
+        let tmpl = localStorage.getItem("broadcastTemplate") || defaultTemplate;
+        let formattedId = id.toString().padStart(3, '0');
+        let link = `asira.id/inv/${formattedId}`;
+        let msg = tmpl.replace("{nama_tamu}", nama).replace("{link_undangan}", link);
+        document.getElementById('waMessagePreview').innerText = msg;
+        document.getElementById('modalWa').classList.remove('hidden');
+    }
+    function closeWaModal() { document.getElementById('modalWa').classList.add('hidden'); }
+
+    function openEditModal(id, nama, kategori, meja, hp) {
+        document.getElementById('editId').value = id;
+        document.getElementById('editNama').value = nama;
+        document.getElementById('editKategori').value = kategori;
+        document.getElementById('editMeja').value = meja;
+        document.getElementById('editHp').value = (hp && hp !== 'None') ? hp : '';
+        document.getElementById('formEdit').action = '/edit_tamu/' + id;
+        document.getElementById('modalEdit').classList.remove('hidden');
+    }
+
+    function toggleSelectAll(source) {
+        checkboxes = document.getElementsByClassName('row-checkbox');
+        for(var i=0; i<checkboxes.length; i++) checkboxes[i].checked = source.checked;
+    }
+
+    function filterTab(btn, category) {
+        document.querySelectorAll('.tab-btn').forEach(b => {
+            b.className = "tab-btn px-6 py-3 text-sm font-medium text-stone-500 hover:text-charcoal-900 border-b-2 border-transparent hover:border-stone-300 transition-colors cursor-pointer";
+        });
+        btn.className = "tab-btn px-6 py-3 text-sm font-medium text-gold-600 border-b-2 border-gold-500 transition-colors cursor-pointer";
+        let rows = document.querySelectorAll("tbody tr");
+        rows.forEach(row => {
+            let catText = row.getAttribute('data-kategori'); 
+            if (category === 'all') { row.style.display = ""; } 
+            else if (category === 'VIP') { if (catText.includes("VIP")) { row.style.display = ""; } else { row.style.display = "none"; } } 
+            else { if (catText.includes(category)) { row.style.display = ""; } else { row.style.display = "none"; } }
+        });
+    }
+    document.getElementById('searchInput').addEventListener('keyup', function() {
+        let filter = this.value.toUpperCase();
+        let rows = document.querySelector("tbody").rows;
+        for (let i = 0; i < rows.length; i++) {
+            let text = rows[i].textContent.toUpperCase();
+            rows[i].style.display = text.indexOf(filter) > -1 ? "" : "none";
+        }
+    });
+</script>
+{% endblock %}

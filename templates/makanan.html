@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-end items-center gap-4">
+        <button onclick="document.getElementById('modalTambahMakanan').classList.remove('hidden')" 
+                class="px-4 py-2 bg-gold-500 text-white rounded-lg text-sm font-medium hover:bg-gold-600 transition-colors flex items-center gap-2 shadow-lg shadow-gold-500/20">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> Tambah Menu
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for m in makanan %}
+        <div class="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
+            <div class="h-2 bg-gold-500"></div>
+            
+            <div class="p-6">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <span class="px-2 py-1 bg-stone-100 text-stone-600 text-[10px] font-bold uppercase tracking-wider rounded border border-stone-200">
+                            {{ m.jenis }}
+                        </span>
+                        <h3 class="font-serif font-bold text-xl text-charcoal-900 mt-2">{{ m.nama_menu }}</h3>
+                    </div>
+                    <div class="bg-gold-50 p-2 rounded-xl">
+                        <i data-lucide="utensils" class="w-6 h-6 text-gold-600"></i>
+                    </div>
+                </div>
+
+                <p class="text-sm text-stone-500 mb-6 leading-relaxed italic">
+                    "{{ m.deskripsi if m.deskripsi else 'Tidak ada deskripsi menu.' }}"
+                </p>
+
+                <div class="flex items-center justify-between pt-4 border-t border-stone-50">
+                    <div class="flex flex-col">
+                        <span class="text-[10px] uppercase font-bold text-stone-400 tracking-widest">Estimasi Porsi</span>
+                        <span class="text-charcoal-900 font-bold">{{ m.porsi }} <small class="text-stone-400 font-normal">Pax</small></span>
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button onclick="openEditMakanan('{{ m.id }}', '{{ m.nama_menu }}', '{{ m.jenis }}', '{{ m.porsi }}', '{{ m.deskripsi }}')" 
+                                class="p-2 bg-stone-50 text-stone-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg border border-stone-100 transition-colors">
+                            <i data-lucide="pencil" class="w-4 h-4"></i>
+                        </button>
+                        <button onclick="if(confirm('Hapus menu ini?')) window.location.href='/hapus_makanan/{{ m.id }}'" 
+                                class="p-2 bg-stone-50 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg border border-stone-100 transition-colors">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <button onclick="document.getElementById('modalTambahMakanan').classList.remove('hidden')" 
+                class="border-2 border-dashed border-stone-200 rounded-2xl flex flex-col items-center justify-center p-8 text-stone-400 hover:border-gold-500 hover:text-gold-500 hover:bg-gold-50/30 transition-all min-h-[200px]">
+            <i data-lucide="cooking-pot" class="w-8 h-8 mb-3 opacity-20"></i>
+            <span class="text-sm font-medium">Tambah Menu Baru</span>
+        </button>
+    </div>
+</div>
+
+<div id="modalTambahMakanan" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+        <div class="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
+            <h3 class="text-lg font-serif font-bold text-charcoal-900">Tambah Menu Catering</h3>
+            <button onclick="document.getElementById('modalTambahMakanan').classList.add('hidden')" class="text-stone-400 hover:text-charcoal-900 bg-stone-100 p-1.5 rounded-full">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <form action="/tambah_makanan" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Nama Menu</label>
+                <input type="text" name="nama_menu" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none" placeholder="Contoh: Nasi Kebuli Ayam" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Jenis</label>
+                    <select name="jenis" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none">
+                        <option value="Buffet">Buffet Utama</option>
+                        <option value="Stall">Food Stall</option>
+                        <option value="Dessert">Dessert</option>
+                        <option value="Drink">Beverages</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Jumlah Porsi</label>
+                    <input type="number" name="porsi" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none" placeholder="500">
+                </div>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Deskripsi / Detail Menu</label>
+                <textarea name="deskripsi" rows="3" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none resize-none" placeholder="Tuliskan detail atau catatan menu..."></textarea>
+            </div>
+            <button type="submit" class="w-full py-3 bg-charcoal-900 text-white font-bold rounded-xl hover:bg-charcoal-800 transition-all shadow-lg shadow-charcoal-900/20">
+                Simpan Menu
+            </button>
+        </form>
+    </div>
+</div>
+
+<div id="modalEditMakanan" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+        <div class="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
+            <h3 class="text-lg font-serif font-bold text-charcoal-900">Edit Menu</h3>
+            <button onclick="document.getElementById('modalEditMakanan').classList.add('hidden')" class="text-stone-400 hover:text-charcoal-900 bg-stone-100 p-1.5 rounded-full">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <form id="formEditMakanan" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Nama Menu</label>
+                <input type="text" id="editNamaMenu" name="nama_menu" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none" required>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Jenis</label>
+                    <select id="editJenis" name="jenis" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none">
+                        <option value="Buffet">Buffet Utama</option>
+                        <option value="Stall">Food Stall</option>
+                        <option value="Dessert">Dessert</option>
+                        <option value="Drink">Beverages</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Jumlah Porsi</label>
+                    <input type="number" id="editPorsi" name="porsi" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none">
+                </div>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Deskripsi</label>
+                <textarea id="editDeskripsi" name="deskripsi" rows="3" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none resize-none"></textarea>
+            </div>
+            <button type="submit" class="w-full py-3 bg-gold-500 text-white font-bold rounded-xl hover:bg-gold-600 transition-all">
+                Update Menu
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openEditMakanan(id, nama, jenis, porsi, deskripsi) {
+        document.getElementById('editNamaMenu').value = nama;
+        document.getElementById('editJenis').value = jenis;
+        document.getElementById('editPorsi').value = porsi;
+        document.getElementById('editDeskripsi').value = deskripsi;
+        document.getElementById('formEditMakanan').action = '/edit_makanan/' + id;
+        document.getElementById('modalEditMakanan').classList.remove('hidden');
+    }
+</script>
+{% endblock %}

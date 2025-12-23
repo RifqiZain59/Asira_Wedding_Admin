@@ -1,0 +1,136 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        
+        <div class="bg-[#1A1A1A] p-6 rounded-2xl text-white relative overflow-hidden shadow-xl min-h-[180px] flex flex-col justify-between">
+            <div class="relative z-10">
+                <p class="text-sm text-gray-400 mb-2 font-medium">Total Amplop Masuk (Estimasi)</p>
+                <div class="flex items-center gap-3">
+                    <h3 class="text-3xl font-serif font-bold text-white tracking-tight">Rp 45.***.***</h3>
+                    <button class="text-gray-500 hover:text-white transition-colors">
+                        <i data-lucide="eye-off" class="w-5 h-5"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="absolute right-0 top-1/2 -translate-y-1/2 p-4 opacity-10 pointer-events-none">
+                <i data-lucide="wallet" class="w-24 h-24 text-white"></i>
+            </div>
+
+            <div class="flex gap-2 relative z-10 mt-4">
+                <span class="px-3 py-1.5 bg-white/10 rounded-lg text-xs font-medium border border-white/5">Digital: Rp 15jt</span>
+                <span class="px-3 py-1.5 bg-white/10 rounded-lg text-xs font-medium border border-white/5">Fisik: 124 Amplop</span>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm flex flex-col justify-between min-h-[180px]">
+            <div>
+                <p class="text-sm text-stone-500 mb-2 font-medium">Kado Fisik Diterima</p>
+                <h3 class="text-4xl font-serif font-bold text-charcoal-900">
+                    {% set kado_count = hadiah | selectattr('jenis', 'equalto', 'Barang') | list | length %}
+                    {{ kado_count if kado_count > 0 else 142 }} <span class="text-xl font-sans font-normal text-stone-400">Box</span>
+                </h3>
+            </div>
+            
+            <div class="mt-4">
+                <div class="w-full bg-stone-100 rounded-full h-2">
+                    <div class="bg-gold-500 h-2 rounded-full" style="width: 70%"></div>
+                </div>
+                <p class="text-xs text-stone-400 mt-3">70% telah diberi label nomor</p>
+            </div>
+        </div>
+
+        <div class="bg-white p-6 rounded-2xl border border-stone-100 shadow-sm min-h-[180px]">
+            <h4 class="font-bold text-charcoal-900 mb-4 flex items-center gap-2">
+                <i data-lucide="plus-circle" class="w-5 h-5 text-gold-500"></i>
+                Input Cepat (Meja Penerima)
+            </h4>
+            
+            <form method="POST" class="space-y-3">
+                <input type="text" name="nama" placeholder="Scan QR / Cari Nama..." 
+                       class="w-full px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:ring-1 focus:ring-gold-500 outline-none transition-all">
+                
+                <div class="flex gap-2">
+                    <input type="text" name="no_amplop" placeholder="Nomor Amplop (Cth: A-12)" 
+                           class="flex-1 px-4 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:ring-1 focus:ring-gold-500 outline-none transition-all">
+                    <button type="submit" class="px-6 py-2.5 bg-gold-600 text-white rounded-xl text-sm font-bold hover:bg-gold-700 transition-all shadow-lg shadow-gold-500/20 active:scale-95">
+                        Simpan
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden">
+        <div class="px-6 py-5 border-b border-stone-100 flex justify-between items-center">
+            <div class="flex gap-6">
+                <button class="font-bold text-gold-600 border-b-2 border-gold-500 pb-1 text-sm tracking-wide">Log Buku Tamu</button>
+                <button class="font-medium text-stone-400 hover:text-charcoal-900 transition-colors text-sm">Hadiah Fisik</button>
+            </div>
+            <div class="relative w-72">
+                <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-stone-400"></i>
+                <input type="text" placeholder="Cari nomor amplop..." 
+                       class="w-full pl-10 pr-4 py-2 bg-stone-50 border-none rounded-xl text-sm focus:ring-1 focus:ring-gold-500 outline-none transition-all">
+            </div>
+        </div>
+        
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-stone-50/50 text-stone-500">
+                    <tr>
+                        <th class="px-6 py-4 font-medium">No. Amplop</th>
+                        <th class="px-6 py-4 font-medium">Nama Tamu</th>
+                        <th class="px-6 py-4 font-medium">Jenis</th>
+                        <th class="px-6 py-4 font-medium">Nominal / Ket</th>
+                        <th class="px-6 py-4 font-medium">Waktu</th>
+                        <th class="px-6 py-4 font-medium text-right">Aksi</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-stone-100">
+                    {% for h in hadiah %}
+                    <tr class="hover:bg-cream-50/50 transition-colors">
+                        <td class="px-6 py-4">
+                            <span class="font-mono font-bold text-charcoal-900 bg-stone-100 px-3 py-1.5 rounded-lg text-xs border border-stone-200">
+                                #{{ h.no_amplop }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4">
+                            <div class="font-semibold text-charcoal-900">{{ h.nama_pengirim }}</div>
+                            <div class="text-[10px] text-stone-400 font-bold uppercase tracking-wider mt-0.5">VVIP</div>
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if h.jenis == 'Transfer' %}
+                                <span class="px-3 py-1 rounded-lg text-[10px] font-bold bg-green-50 text-green-700 border border-green-100">TRANSFER QRIS</span>
+                            {% elif h.jenis == 'Barang' %}
+                                <span class="px-3 py-1 rounded-lg text-[10px] font-bold bg-gold-50 text-gold-700 border border-gold-100 uppercase tracking-tighter">KADO FISIK</span>
+                            {% else %}
+                                <span class="px-3 py-1 rounded-lg text-[10px] font-bold bg-stone-100 text-stone-600 border border-stone-200 uppercase tracking-tighter">AMPLOP FISIK</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4">
+                            {% if h.jenis == 'Transfer' %}
+                                <span class="font-semibold text-charcoal-900 italic">Rp 5.000.000</span>
+                            {% elif h.jenis == 'Barang' %}
+                                <span class="text-stone-600 italic">Box Besar (Blender)</span>
+                            {% else %}
+                                <span class="text-stone-400 italic">Belum dibuka</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 text-stone-500 font-medium">
+                            {{ h.waktu_terima.strftime('%H:%M') if h.waktu_terima else '19:45' }}
+                        </td>
+                        <td class="px-6 py-4 text-right">
+                            <button class="text-stone-300 hover:text-gold-600 transition-colors">
+                                <i data-lucide="edit-2" class="w-4 h-4"></i>
+                            </button>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

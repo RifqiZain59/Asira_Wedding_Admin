@@ -1,0 +1,140 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-end items-center gap-4">
+        <button onclick="document.getElementById('modalTambahLokasi').classList.remove('hidden')" 
+                class="px-4 py-2 bg-gold-500 text-white rounded-lg text-sm font-medium hover:bg-gold-600 transition-colors flex items-center gap-2 shadow-lg shadow-gold-500/20">
+            <i data-lucide="map-pin" class="w-4 h-4"></i> Tambah Lokasi
+        </button>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for l in lokasi %}
+        <div class="bg-white rounded-2xl border border-stone-100 shadow-sm overflow-hidden group hover:shadow-md transition-all">
+            <div class="aspect-video bg-stone-100 relative flex items-center justify-center overflow-hidden">
+                <div class="absolute inset-0 opacity-10">
+                    <svg width="100%" height="100%"><filter id="n"><feTurbulence type="fractalNoise" baseFrequency="0.6" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(#n)"/></svg>
+                </div>
+                <i data-lucide="map" class="w-12 h-12 text-stone-300 relative z-10"></i>
+                
+                <div class="absolute top-3 right-3">
+                    <span class="px-2 py-1 bg-white/90 backdrop-blur-sm text-[10px] font-bold uppercase tracking-wider text-gold-600 rounded-md border border-gold-100 shadow-sm">
+                        {{ l.kategori }}
+                    </span>
+                </div>
+            </div>
+            
+            <div class="p-5">
+                <h3 class="font-bold text-charcoal-900 mb-1">{{ l.nama_tempat }}</h3>
+                <p class="text-xs text-stone-500 line-clamp-2 mb-4 leading-relaxed">
+                    <i data-lucide="navigation" class="w-3 h-3 inline mr-1"></i> {{ l.alamat }}
+                </p>
+                
+                <div class="flex items-center gap-2">
+                    <a href="{{ l.link_gmaps }}" target="_blank" class="flex-1 py-2 bg-stone-50 text-stone-600 text-[11px] font-bold rounded-lg hover:bg-gold-50 hover:text-gold-600 transition-colors text-center border border-stone-100">
+                        Buka Maps
+                    </a>
+                    
+                    <button onclick="openEditLokasi('{{ l.id }}', '{{ l.nama_tempat }}', '{{ l.kategori }}', '{{ l.alamat }}', '{{ l.link_gmaps }}')" 
+                            class="p-2 bg-stone-50 text-stone-400 hover:text-yellow-600 hover:bg-yellow-50 rounded-lg border border-stone-100 transition-colors">
+                        <i data-lucide="pencil" class="w-4 h-4"></i>
+                    </button>
+
+                    <button onclick="if(confirm('Hapus lokasi ini?')) window.location.href='/hapus_lokasi/{{ l.id }}'" 
+                            class="p-2 bg-stone-50 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg border border-stone-100 transition-colors">
+                        <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        <button onclick="document.getElementById('modalTambahLokasi').classList.remove('hidden')" 
+                class="border-2 border-dashed border-stone-200 rounded-2xl flex flex-col items-center justify-center p-8 text-stone-400 hover:border-gold-500 hover:text-gold-500 hover:bg-gold-50/30 transition-all min-h-[220px]">
+            <i data-lucide="plus" class="w-6 h-6 mb-2"></i>
+            <span class="text-sm font-medium">Tambah Titik Baru</span>
+        </button>
+    </div>
+</div>
+
+<div id="modalTambahLokasi" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+        <div class="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
+            <h3 class="text-lg font-serif font-bold text-charcoal-900">Tambah Lokasi</h3>
+            <button onclick="document.getElementById('modalTambahLokasi').classList.add('hidden')" class="text-stone-400 hover:text-charcoal-900 bg-stone-100 p-1.5 rounded-full">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <form action="/tambah_lokasi" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Nama Tempat</label>
+                <input type="text" name="nama_tempat" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none" required>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Kategori</label>
+                <select name="kategori" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none">
+                    <option value="Akad Nikah">Akad Nikah</option>
+                    <option value="Resepsi">Resepsi</option>
+                    <option value="Parkir">Parkir</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Alamat</label>
+                <textarea name="alamat" rows="2" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none resize-none"></textarea>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Link Google Maps</label>
+                <input type="url" name="link_gmaps" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none">
+            </div>
+            <button type="submit" class="w-full py-3 bg-charcoal-900 text-white font-bold rounded-xl hover:bg-charcoal-800 transition-all">Simpan Lokasi</button>
+        </form>
+    </div>
+</div>
+
+<div id="modalEditLokasi" class="hidden fixed inset-0 z-50 bg-black/50 flex items-center justify-center backdrop-blur-sm p-4">
+    <div class="bg-white w-full max-w-md rounded-2xl p-6 shadow-2xl">
+        <div class="flex justify-between items-center mb-6 border-b border-stone-100 pb-4">
+            <h3 class="text-lg font-serif font-bold text-charcoal-900">Edit Lokasi</h3>
+            <button onclick="document.getElementById('modalEditLokasi').classList.add('hidden')" class="text-stone-400 hover:text-charcoal-900 bg-stone-100 p-1.5 rounded-full">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+        </div>
+        <form id="formEditLokasi" method="POST" class="space-y-4">
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Nama Tempat</label>
+                <input type="text" id="editNama" name="nama_tempat" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none" required>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Kategori</label>
+                <select id="editKategori" name="kategori" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none">
+                    <option value="Akad Nikah">Akad Nikah</option>
+                    <option value="Resepsi">Resepsi</option>
+                    <option value="Parkir">Parkir</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Alamat</label>
+                <textarea id="editAlamat" name="alamat" rows="2" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none resize-none"></textarea>
+            </div>
+            <div>
+                <label class="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-widest">Link Google Maps</label>
+                <input type="url" id="editLink" name="link_gmaps" class="w-full px-4 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm focus:border-gold-500 outline-none">
+            </div>
+            <button type="submit" class="w-full py-3 bg-gold-500 text-white font-bold rounded-xl hover:bg-gold-600 transition-all">Update Lokasi</button>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openEditLokasi(id, nama, kategori, alamat, link) {
+        document.getElementById('editNama').value = nama;
+        document.getElementById('editKategori').value = kategori;
+        document.getElementById('editAlamat').value = alamat;
+        document.getElementById('editLink').value = link;
+        document.getElementById('formEditLokasi').action = '/edit_lokasi/' + id;
+        document.getElementById('modalEditLokasi').classList.remove('hidden');
+    }
+</script>
+
+{% endblock %}
