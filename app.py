@@ -323,6 +323,21 @@ def crew():
         return redirect(url_for('crew'))
     return render_template('crew.html', active_page='crew', crew=Crew.query.all())
 
+@app.route('/edit_crew/<int:id>', methods=['POST'])
+def edit_crew(id):
+    try:
+        c = Crew.query.get_or_404(id)
+        c.nama = request.form.get('nama')
+        c.peran = request.form.get('peran')
+        c.no_hp = request.form.get('no_hp')
+        c.status = request.form.get('status')
+        db.session.commit()
+        flash(f"Data crew {c.nama} berhasil diperbarui.")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Gagal memperbarui data: {str(e)}")
+    return redirect(url_for('crew'))
+
 @app.route('/hapus_crew/<int:id>')
 def hapus_crew(id):
     db.session.delete(Crew.query.get_or_404(id))
@@ -447,6 +462,22 @@ def process_scan_api():
     else:
         flash("Gagal memproses barcode.", "error")
         return {'status': 'error', 'message': 'Tidak ada data barcode.'}, 400
+    
+# Contoh logic di Flask route
+@app.route('/invitation/<slug>')
+def view_invitation(slug):
+    # Ambil data dari DB dulu
+    config = get_config(slug)
+    
+    # JIKA ada parameter di URL (berasal dari tombol preview), tindih data DB
+    preview_mode = request.args.get('preview')
+    if preview_mode:
+        config.judul_mempelai = request.args.get('nama')
+        config.tanggal_acara = request.args.get('tanggal')
+        config.tema_warna = request.args.get('tema')
+        # cover_url = request.args.get('cover')
+    
+    return render_template('invitation.html', config=config)
 
 if __name__ == "__main__":
     with app.app_context():
