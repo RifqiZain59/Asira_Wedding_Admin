@@ -274,18 +274,46 @@ def hapus_tamu(id):
 
 @app.route('/rundown')
 def rundown():
-    if Rundown.query.count() == 0:
-        db.session.add(Rundown(waktu="18:30", judul="Registrasi", deskripsi="Area Foyer", pic="Usher"))
-        db.session.commit()
+    # Menghapus logika pengecekan Rundown.query.count() == 0 
+    # agar tidak otomatis menambah data "Registrasi" saat tabel kosong.
     return render_template('rundown.html', active_page='rundown', items=Rundown.query.order_by(Rundown.waktu).all())
 
 @app.route('/gifts', methods=['GET', 'POST'])
 def gifts():
     if request.method == 'POST':
-        db.session.add(Hadiah(no_amplop=request.form['no_amplop'], nama_pengirim=request.form['nama'], jenis=request.form['jenis'], keterangan="Input Manual"))
-        db.session.commit()
+        # Mengambil data dari form
+        # Catatan: di gifts.html name input adalah 'nama' dan 'no_amplop'
+        nama = request.form.get('nama')
+        no_amplop = request.form.get('no_amplop')
+        
+        # Karena di form input cepat tidak ada pilihan 'jenis', 
+        # kita beri default 'Amplop' atau sesuaikan dengan kebutuhan
+        jenis_hadiah = request.form.get('jenis', 'Amplop') 
+
+        if nama and no_amplop:
+            new_gift = Hadiah(
+                no_amplop=no_amplop,
+                nama_pengirim=nama,
+                jenis=jenis_hadiah,
+                keterangan="Input Cepat Meja Penerima",
+                waktu_terima=datetime.now()
+            )
+            db.session.add(new_gift)
+            db.session.commit()
+            flash(f"Data hadiah dari {nama} berhasil disimpan!")
+        else:
+            flash("Gagal menyimpan: Nama dan Nomor Amplop harus diisi.")
+            
         return redirect(url_for('gifts'))
-    return render_template('gifts.html', active_page='gifts', hadiah=Hadiah.query.order_by(Hadiah.id.desc()).all(), total=Hadiah.query.count())
+
+    # Bagian GET: Mengambil semua data untuk ditampilkan di tabel
+    hadiah_list = Hadiah.query.order_by(Hadiah.id.desc()).all()
+    total_hadiah = Hadiah.query.count()
+    
+    return render_template('gifts.html', 
+                           active_page='gifts', 
+                           hadiah=hadiah_list, 
+                           total=total_hadiah)
 
 @app.route('/crew', methods=['GET', 'POST'])
 def crew():
@@ -350,6 +378,75 @@ def crew_offline_all():
     db.session.commit()
     flash("Semua akses crew telah dinonaktifkan.")
     return redirect(url_for('crew'))
+
+@app.route('/tambah_rundown', methods=['POST'])
+def tambah_rundown():
+    waktu = request.form.get('waktu')
+    judul = request.form.get('judul')
+    deskripsi = request.form.get('deskripsi')
+    pic = request.form.get('pic')
+    status = request.form.get('status')
+    
+    new_item = Rundown(waktu=waktu, judul=judul, deskripsi=deskripsi, pic=pic, status=status)
+    db.session.add(new_item)
+    db.session.commit()
+    flash("Jadwal acara berhasil ditambahkan.")
+    return redirect(url_for('rundown'))
+
+@app.route('/edit_rundown/<int:id>', methods=['POST'])
+def edit_rundown(id):
+    try:
+        item = Rundown.query.get_or_404(id)
+        item.waktu = request.form.get('waktu')
+        item.judul = request.form.get('judul')
+        item.deskripsi = request.form.get('deskripsi')
+        item.pic = request.form.get('pic')
+        item.status = request.form.get('status')
+        db.session.commit()
+        flash("Jadwal diperbarui.")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error: {str(e)}")
+    return redirect(url_for('rundown'))
+
+@app.route('/hapus_rundown/<int:id>')
+def hapus_rundown(id):
+    try:
+        item = Rundown.query.get_or_404(id)
+        db.session.delete(item)
+        db.session.commit()
+        # Reset ID jika kosong (MySQL)
+        if Rundown.query.count() == 0:
+            db.session.execute(text("ALTER TABLE rundown AUTO_INCREMENT = 1"))
+            db.session.commit()
+        flash("Jadwal dihapus.")
+    except Exception as e:
+        db.session.rollback()
+        flash(f"Error: {str(e)}")
+    return redirect(url_for('rundown'))
+
+@app.route('/scan')
+def scan_page():
+    return render_template('scan.html', active_page='scan')
+
+# Contoh rute untuk memproses hasil scan dari frontend
+@app.route('/api/process-scan', methods=['POST'])
+def process_scan_api():
+    data = request.get_json()
+    barcode_value = data.get('barcode')
+
+    # Lakukan logika Anda di sini, misalnya:
+    # - Cari tamu berdasarkan barcode_value
+    # - Tandai tamu sudah hadir
+    # - Catat kado, dll.
+
+    # Contoh respons
+    if barcode_value:
+        flash(f"Barcode '{barcode_value}' berhasil diproses!", "success")
+        return {'status': 'success', 'message': f'Data {barcode_value} diproses.'}
+    else:
+        flash("Gagal memproses barcode.", "error")
+        return {'status': 'error', 'message': 'Tidak ada data barcode.'}, 400
 
 if __name__ == "__main__":
     with app.app_context():

@@ -1,0 +1,134 @@
+{% extends "base.html" %}
+
+{% block title %}Scan Barcode - Asira Wedding Admin{% endblock %}
+
+{% block content %}
+<div class="container mx-auto px-4 py-8">
+    <div class="bg-white rounded-2xl shadow-sm p-8 border border-stone-200">
+        <div class="grid md:grid-cols-2 gap-12 items-center">
+            
+            <div class="flex flex-col items-center w-full"> 
+                <div class="flex gap-2 mb-6">
+                    <button id="start-camera" class="flex items-center gap-2 px-6 py-2.5 bg-charcoal-900 text-white rounded-full text-sm font-semibold hover:bg-black transition-all shadow-lg active:scale-95">
+                        <i data-lucide="play" class="w-4 h-4"></i> Aktifkan Kamera
+                    </button>
+                    <button id="stop-camera" class="hidden flex items-center gap-2 px-6 py-2.5 bg-red-50 text-red-600 border border-red-200 rounded-full text-sm font-semibold hover:bg-red-100 transition-all active:scale-95">
+                        <i data-lucide="square" class="w-4 h-4"></i> Matikan Kamera
+                    </button>
+                </div>
+
+                <div class="relative w-full max-w-[350px] aspect-square bg-charcoal-900 rounded-3xl p-6 border-2 border-stone-800">
+                    
+                    <div id="reader" class="w-full h-full rounded-xl overflow-hidden bg-black flex items-center justify-center relative">
+                        <div id="camera-placeholder" class="text-center p-4">
+                            <i data-lucide="camera" class="w-8 h-8 text-stone-700 mx-auto mb-2"></i>
+                            <p class="text-stone-600 text-[10px] font-medium uppercase tracking-widest">Ready</p>
+                        </div>
+                    </div>
+                    
+                    <div class="absolute inset-6 pointer-events-none">
+                        <div class="absolute -top-1 -left-1 w-10 h-10 border-t-4 border-l-4 border-gold-500 rounded-tl-lg"></div>
+                        <div class="absolute -top-1 -right-1 w-10 h-10 border-t-4 border-r-4 border-gold-500 rounded-tr-lg"></div>
+                        <div class="absolute -bottom-1 -left-1 w-10 h-10 border-b-4 border-l-4 border-gold-500 rounded-bl-lg"></div>
+                        <div class="absolute -bottom-1 -right-1 w-10 h-10 border-b-4 border-r-4 border-gold-500 rounded-br-lg"></div>
+                    </div>
+                </div>
+                <p class="mt-4 text-xs text-stone-400 italic">Letakkan QR Code di dalam bingkai emas</p>
+            </div>
+
+            <div class="w-full">
+                <div id="scan-result-card" class="bg-white p-8 rounded-2xl border border-gold-200 shadow-xl hidden">
+                    <div class="flex items-center gap-4 mb-6">
+                        <div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center shadow-lg shadow-green-100">
+                            <i data-lucide="check" class="text-white w-6 h-6"></i>
+                        </div>
+                        <div>
+                            <h3 class="text-xl font-bold text-charcoal-900 leading-tight">Terdeteksi</h3>
+                            <p class="text-sm text-stone-500">Konfirmasi data tamu</p>
+                        </div>
+                    </div>
+
+                    <div class="bg-cream-100 p-5 rounded-xl border border-gold-100 mb-8 text-center">
+                        <p class="text-[10px] uppercase tracking-widest text-gold-600 font-black mb-2">Data Hasil Scan</p>
+                        <p id="scan-value" class="text-2xl font-mono text-charcoal-900 break-all font-bold"></p>
+                    </div>
+
+                    <div class="flex flex-col gap-3">
+                        <button id="process-scan-btn" class="w-full py-4 bg-gold-500 text-white rounded-xl font-bold hover:bg-gold-600 transition-all">
+                            Check-in Tamu
+                        </button>
+                        <button id="clear-scan-btn" class="w-full py-3 text-stone-500 font-semibold flex items-center justify-center gap-2">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i> Scan Ulang
+                        </button>
+                    </div>
+                </div>
+
+                <div id="no-scan-data" class="text-center p-10 border-2 border-dashed border-stone-200 rounded-3xl h-[350px] flex flex-col items-center justify-center">
+                    <i data-lucide="qr-code" class="w-12 h-12 text-stone-200 mb-4"></i>
+                    <p class="text-stone-500 font-serif italic text-lg">Menunggu scan...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        lucide.createIcons();
+
+        const html5QrCode = new Html5Qrcode("reader");
+        const btnStart = document.getElementById('start-camera');
+        const btnStop = document.getElementById('stop-camera');
+        const placeholder = document.getElementById('camera-placeholder');
+        const scanResultCard = document.getElementById('scan-result-card');
+        const noScanData = document.getElementById('no-scan-data');
+        const scanValueSpan = document.getElementById('scan-value');
+
+        const config = { 
+            fps: 25, 
+            qrbox: (viewfinderWidth, viewfinderHeight) => {
+                // Menghitung kotak scan agar memenuhi area dalam padding
+                return { width: viewfinderWidth, height: viewfinderHeight };
+            },
+            aspectRatio: 1.0 
+        };
+
+        function onScanSuccess(decodedText) {
+            scanValueSpan.textContent = decodedText;
+            scanResultCard.classList.remove('hidden');
+            noScanData.classList.add('hidden');
+            stopCameraAction();
+            if (window.navigator.vibrate) window.navigator.vibrate(100);
+        }
+
+        function startCameraAction() {
+            html5QrCode.start({ facingMode: "environment" }, config, onScanSuccess)
+                .then(() => {
+                    btnStart.classList.add('hidden');
+                    btnStop.classList.remove('hidden');
+                    placeholder.classList.add('hidden');
+                })
+                .catch(err => console.error(err));
+        }
+
+        function stopCameraAction() {
+            if (html5QrCode.isScanning) {
+                html5QrCode.stop().then(() => {
+                    btnStart.classList.remove('hidden');
+                    btnStop.classList.add('hidden');
+                    placeholder.classList.remove('hidden');
+                });
+            }
+        }
+
+        btnStart.addEventListener('click', startCameraAction);
+        btnStop.addEventListener('click', stopCameraAction);
+        document.getElementById('clear-scan-btn').addEventListener('click', () => {
+            scanResultCard.classList.add('hidden');
+            noScanData.classList.remove('hidden');
+            startCameraAction();
+        });
+    });
+</script>
+{% endblock %}
