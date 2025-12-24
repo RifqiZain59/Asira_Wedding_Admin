@@ -37,7 +37,7 @@
         </div>
         <div>
             <p class="text-[10px] text-stone-400 font-bold uppercase tracking-widest">Login Access</p>
-            <p class="text-xl font-bold text-charcoal-900">Encrypted Code</p>
+            <p class="text-xl font-bold text-charcoal-900">Randomized Code</p>
         </div>
     </div>
     <div class="bg-white p-5 rounded-2xl border border-stone-100 shadow-sm flex items-center gap-4">
@@ -80,9 +80,9 @@
                     <td class="px-6 py-4">
                         <div class="flex items-center gap-2">
                             <code class="px-2 py-1 bg-charcoal-900 text-gold-400 rounded text-xs font-mono tracking-widest border border-charcoal-800">
-                                {{ c.no_hp[-4:] }}ASR
+                                {{ c.kode_akses }}
                             </code>
-                            <button onclick="copyCode('{{ c.no_hp[-4:] }}ASR')" class="text-stone-300 hover:text-gold-500 transition-colors">
+                            <button onclick="copyCode('{{ c.kode_akses }}')" class="text-stone-300 hover:text-gold-500 transition-colors">
                                 <i data-lucide="copy" class="w-3 h-3"></i>
                             </button>
                         </div>
