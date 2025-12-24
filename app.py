@@ -6,12 +6,12 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from datetime import datetime
-from sqlalchemy import text
+from sqlalchemy import text, inspect
 
 app = Flask(__name__)
 
 # --- KONFIGURASI DATABASE ---
-# Sesuaikan dengan config database lokal Anda
+# Sesuaikan 'root' dan password '' dengan konfigurasi MySQL Anda
 app.config['SQLALCHEMY_DATABASE_URI'] = 'mysql+pymysql://root:@localhost/asira_db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.secret_key = 'asira_super_secret_key'
@@ -20,7 +20,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 db = SQLAlchemy(app)
 
 # ==========================================
-# MODEL DATABASE (DENGAN TO_DICT UNTUK API)
+# MODEL DATABASE
 # ==========================================
 
 class DesignConfig(db.Model):
@@ -113,7 +113,9 @@ class Crew(db.Model):
     peran = db.Column(db.String(50))
     no_hp = db.Column(db.String(20))
     status = db.Column(db.String(20), default='Active')
-    kode_akses = db.Column(db.String(10), unique=True) 
+    kode_akses = db.Column(db.String(10), unique=True)
+    # Kolom catatan untuk status darurat/respon
+    catatan = db.Column(db.String(255), nullable=True)
 
     def to_dict(self):
         return {
@@ -122,7 +124,8 @@ class Crew(db.Model):
             'peran': self.peran,
             'no_hp': self.no_hp,
             'status': self.status,
-            'login_code': self.kode_akses
+            'login_code': self.kode_akses,
+            'catatan': self.catatan
         }
 
 class Lokasi(db.Model):
@@ -140,7 +143,7 @@ class MenuMakanan(db.Model):
     porsi = db.Column(db.Integer)
 
 # ==========================================
-# HELPER: GENERATE KODE ACAK
+# HELPER
 # ==========================================
 def generate_unique_code():
     while True:
@@ -245,11 +248,15 @@ def gifts():
 @app.route('/crew', methods=['GET', 'POST'])
 def crew():
     if request.method == 'POST':
-        # Generate kode acak saat tambah via web
         db.session.add(Crew(nama=request.form['nama'], peran=request.form['peran'], no_hp=request.form['no_hp'], kode_akses=generate_unique_code()))
         db.session.commit()
         return redirect(url_for('crew'))
-    return render_template('crew.html', active_page='crew', crew=Crew.query.all())
+    
+    # Kirim status darurat ke template untuk toggle tombol
+    all_crew = Crew.query.all()
+    is_emergency = any(c.status == 'Warning' for c in all_crew)
+    
+    return render_template('crew.html', active_page='crew', crew=all_crew, is_emergency=is_emergency)
 
 @app.route('/edit_crew/<int:id>', methods=['POST'])
 def edit_crew(id):
@@ -287,12 +294,64 @@ def tambah_makanan():
 
 @app.route('/crew_active_all')
 def crew_active_all():
-    db.session.execute(text("UPDATE crew SET status='Active'")); db.session.commit()
+    # RESET TOTAL: Semua (Warning, Offline, Responded) jadi Active & Catatan Hilang
+    db.session.execute(text("UPDATE crew SET status='Active', catatan=NULL"))
+    db.session.commit()
     return redirect(url_for('crew'))
 
 @app.route('/crew_offline_all')
 def crew_offline_all():
-    db.session.execute(text("UPDATE crew SET status='Offline'")); db.session.commit()
+    db.session.execute(text("UPDATE crew SET status='Offline'"))
+    db.session.commit()
+    return redirect(url_for('crew'))
+
+# ==========================================
+# LOGIKA TOMBOL DARURAT (ADMIN)
+# ==========================================
+
+# 1. Tombol Darurat Global (Trigger Warning ke Semua)
+@app.route('/crew_emergency')
+def crew_emergency():
+    # Cek apakah sedang ada yang darurat
+    check_warning = Crew.query.filter_by(status='Warning').first()
+    
+    if check_warning:
+        # Jika sedang Warning -> Matikan (Jadi Active)
+        db.session.execute(text("UPDATE crew SET status='Active', catatan=NULL WHERE status='Warning'"))
+    else:
+        # Jika Aman -> Nyalakan (Jadi Warning)
+        db.session.execute(text("UPDATE crew SET status='Warning', catatan='DARURAT GLOBAL'"))
+        
+    db.session.commit()
+    return redirect(url_for('crew'))
+
+# 2. Toggle SOS Per-User (Manual oleh Admin)
+@app.route('/toggle_sos/<int:id>')
+def toggle_sos(id):
+    c = Crew.query.get_or_404(id)
+    # Jika Warning atau Responded -> Reset ke Active
+    if c.status in ['Warning', 'Responded']:
+        c.status = 'Active'
+        c.catatan = None
+    else:
+        # Jika Active/Offline -> Set ke Warning
+        c.status = 'Warning'
+        c.catatan = "Manual Trigger"
+        
+    db.session.commit()
+    return redirect(url_for('crew'))
+
+# 3. Trigger SOS dengan Alasan Khusus (Dari Popup Admin)
+@app.route('/crew_trigger_sos', methods=['POST'])
+def crew_trigger_sos():
+    id = request.form.get('crew_id')
+    alasan = request.form.get('alasan')
+    
+    c = Crew.query.get_or_404(id)
+    c.status = 'Warning'
+    c.catatan = alasan
+    db.session.commit()
+    
     return redirect(url_for('crew'))
 
 @app.route('/tambah_rundown', methods=['POST'])
@@ -323,79 +382,58 @@ def view_invitation(slug):
     return render_template('invitation.html', config=config)
 
 # ==============================================================================
-# 🚀 API MOBILE SERVICES (ENDPOINTS PENTING UNTUK FLUTTER)
+# 🚀 API MOBILE SERVICES (UNTUK FLUTTER)
 # ==============================================================================
 
-# 1. API RUNDOWN (GET)
+# 1. API RUNDOWN
 @app.route('/api/mobile/rundown', methods=['GET'])
 def api_get_rundown():
     items = Rundown.query.order_by(Rundown.waktu).all()
     return jsonify({
         'status': 'success',
-        'total': len(items),
         'data': [i.to_dict() for i in items]
     })
 
-# 2. API DASHBOARD (GET)
+# 2. API DASHBOARD (Polling Status Darurat)
 @app.route('/api/mobile/dashboard', methods=['GET'])
 def api_get_dashboard():
     total_tamu = Tamu.query.count()
     hadir = Tamu.query.filter_by(status_rsvp='Hadir').count()
     total_hadiah = Hadiah.query.count()
+    
+    # Cek apakah ada crew yang statusnya Warning (SOS Aktif)
+    emergency_crew = Crew.query.filter_by(status='Warning').first()
+    is_emergency = emergency_crew is not None
+    emergency_msg = emergency_crew.catatan if emergency_crew else ""
+
     return jsonify({
         'status': 'success',
         'data': {
             'total_tamu': total_tamu,
             'hadir': hadir,
-            'total_hadiah': total_hadiah
+            'total_hadiah': total_hadiah,
+            'is_emergency': is_emergency,
+            'emergency_message': emergency_msg
         }
     })
 
-# 3. API TAMU (GET & POST)
-@app.route('/api/mobile/tamu', methods=['GET', 'POST'])
-def api_tamu():
-    if request.method == 'GET':
-        query = request.args.get('search')
-        if query:
-            tamu_list = Tamu.query.filter(Tamu.nama.ilike(f"%{query}%")).all()
-        else:
-            tamu_list = Tamu.query.all()
-        return jsonify({'status': 'success', 'data': [t.to_dict() for t in tamu_list]})
-    
-    # POST
-    data = request.get_json()
-    new_tamu = Tamu(nama=data.get('nama'), no_hp=data.get('no_hp'), kategori=data.get('kategori', 'Reguler'), meja=data.get('meja', '-'))
-    db.session.add(new_tamu)
+# 3. API STOP DARURAT (Dari Tombol "Matikan Alarm" di HP)
+# Cari bagian ini di app.py dan GANTI isinya:
+
+@app.route('/api/mobile/emergency/stop', methods=['POST'])
+def api_stop_emergency():
+    # LOGIKA BARU: 
+    # Langsung reset status ke 'Active' dan hapus catatan.
+    # Sehingga di Admin terlihat normal kembali (tulisan darurat hilang).
+    db.session.execute(text("UPDATE crew SET status='Active', catatan=NULL WHERE status='Warning'"))
     db.session.commit()
-    return jsonify({'status': 'success', 'message': 'Tamu berhasil ditambahkan', 'data': new_tamu.to_dict()})
-
-# 4. API GIFTS (GET & POST)
-@app.route('/api/mobile/gifts', methods=['GET', 'POST'])
-def api_gifts():
-    if request.method == 'GET':
-        gifts = Hadiah.query.order_by(Hadiah.id.desc()).all()
-        return jsonify({'status': 'success', 'data': [g.to_dict() for g in gifts]})
     
-    # POST
-    data = request.get_json()
-    new_gift = Hadiah(
-        no_amplop=data.get('no_amplop'),
-        nama_pengirim=data.get('nama_pengirim'),
-        jenis=data.get('jenis', 'Amplop'),
-        keterangan=data.get('keterangan', '')
-    )
-    db.session.add(new_gift)
-    db.session.commit()
-    return jsonify({'status': 'success', 'message': 'Hadiah disimpan'})
+    return jsonify({
+        'status': 'success', 
+        'message': 'Alarm dimatikan. Status kembali Normal.'
+    })
 
-# 5. API SCAN QR (POST)
-@app.route('/api/mobile/scan', methods=['POST'])
-def api_scan():
-    data = request.get_json()
-    qr_content = data.get('qr_content')
-    return jsonify({'status': 'success', 'message': f'Scan {qr_content} diterima'})
-
-# 6. LOGIN CREW (MENGGUNAKAN KODE ACAK DATABASE)
+# 4. LOGIN CREW (Via Kode)
 @app.route('/api/mobile/crew/login', methods=['POST'])
 def api_crew_login():
     data = request.get_json()
@@ -404,31 +442,47 @@ def api_crew_login():
     
     user = Crew.query.filter_by(kode_akses=kode_akses).first()
     if user:
-        if user.status != 'Active': return jsonify({'status': 'error', 'message': 'Akun dinonaktifkan.'}), 403
+        # User tetap bisa login meski sedang Warning/Responded
+        if user.status == 'Offline': return jsonify({'status': 'error', 'message': 'Akun OFFLINE.'}), 403
         return jsonify({'status': 'success', 'message': 'Login berhasil', 'data': user.to_dict()})
     return jsonify({'status': 'error', 'message': 'Kode akses tidak valid'}), 401
 
-# 7. LOGIN PHONE (SMART LOGIC)
-@app.route('/login-phone', methods=['POST'])
+# 5. LOGIN PHONE (Via Nomor HP)
 @app.route('/api/mobile/login-phone', methods=['POST'])
 def api_login_phone():
     data = request.get_json(silent=True) or request.form
     phone = data.get('phone_number', '').strip()
     if not phone: return jsonify({'status': 'error', 'message': 'Nomor HP wajib'}), 400
     
-    # Cek format 08xx dan 62xx
     possible = [phone]
     if phone.startswith('0'): possible.append('62' + phone[1:])
     elif phone.startswith('62'): possible.append('0' + phone[2:])
+    elif phone.startswith('+62'): possible.append('0' + phone[3:])
     
     user = Crew.query.filter(Crew.no_hp.in_(possible)).first()
     if user:
-        if user.status != 'Active': return jsonify({'status': 'error', 'message': 'Akun dinonaktifkan'}), 403
+        if user.status == 'Offline': return jsonify({'status': 'error', 'message': 'Akun OFFLINE'}), 403
         return jsonify({'status': 'success', 'message': 'Login Berhasil', 'data': user.to_dict()})
     
-    return jsonify({'status': 'not_found', 'message': 'Nomor HP tidak ditemukan'}), 200
+    return jsonify({'status': 'not_found', 'message': 'Nomor HP tidak ditemukan'}), 404
 
+# ==========================================
+# AUTO DB MIGRATION & RUN
+# ==========================================
 if __name__ == "__main__":
     with app.app_context():
         db.create_all()
+        # Cek dan Tambahkan kolom 'catatan' jika belum ada (Auto-Fix)
+        try:
+            inspector = inspect(db.engine)
+            columns = [c['name'] for c in inspector.get_columns('crew')]
+            if 'catatan' not in columns:
+                print("⚠️  Menambahkan kolom 'catatan' ke tabel crew...")
+                with db.engine.connect() as conn:
+                    conn.execute(text("ALTER TABLE crew ADD COLUMN catatan VARCHAR(255) DEFAULT NULL"))
+                    conn.commit()
+                print("✅  Kolom 'catatan' berhasil ditambahkan.")
+        except Exception as e:
+            print(f"Info DB: {e}")
+
     app.run(debug=True, port=5000)
