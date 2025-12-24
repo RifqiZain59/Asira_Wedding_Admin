@@ -4,6 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
 from datetime import datetime
+from sqlalchemy import text
 
 app = Flask(__name__)
 
@@ -16,7 +17,7 @@ app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 db = SQLAlchemy(app)
 
 # ==========================================
-# MODEL DATABASE (DIPISAH)
+# MODEL DATABASE
 # ==========================================
 
 class DesignConfig(db.Model):
@@ -29,31 +30,26 @@ class DesignConfig(db.Model):
 class AssetCover(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     judul = db.Column(db.String(100))
-    # Kolom BLOB untuk Cover
     data_gambar = db.Column(db.LargeBinary(length=16777215)) 
     mimetype = db.Column(db.String(50))
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     @property
     def img_url(self):
-        # Mengarah ke endpoint render dengan tipe 'cover'
         return url_for('tampilkan_gambar', tipe='cover', id=self.id)
 
 # --- TABEL KHUSUS TWIBBON ---
 class AssetTwibbon(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     judul = db.Column(db.String(100))
-    # Kolom BLOB untuk Twibbon
     data_gambar = db.Column(db.LargeBinary(length=16777215)) 
     mimetype = db.Column(db.String(50))
     created_at = db.Column(db.DateTime, default=datetime.now)
 
     @property
     def img_url(self):
-        # Mengarah ke endpoint render dengan tipe 'twibbon'
         return url_for('tampilkan_gambar', tipe='twibbon', id=self.id)
 
-# --- MODEL LAINNYA (Tamu, dll) ---
 class Tamu(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nama = db.Column(db.String(100), nullable=False)
@@ -86,6 +82,18 @@ class Crew(db.Model):
     no_hp = db.Column(db.String(20))
     status = db.Column(db.String(20), default='Active')
 
+    # [MODIFIED] Tambahan untuk API Mobile
+    def to_dict(self):
+        login_code = f"{self.no_hp[-4:]}ASR" if self.no_hp and len(self.no_hp) >= 4 else None
+        return {
+            'id': self.id,
+            'nama': self.nama,
+            'peran': self.peran,
+            'no_hp': self.no_hp,
+            'status': self.status,
+            'login_code': login_code
+        }
+
 class Lokasi(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nama_tempat = db.Column(db.String(100))
@@ -101,7 +109,7 @@ class MenuMakanan(db.Model):
     porsi = db.Column(db.Integer)
 
 # ==========================================
-# ROUTES
+# ROUTES WEB ADMIN
 # ==========================================
 
 @app.route('/')
@@ -120,16 +128,13 @@ def design():
         db.session.add(config)
         db.session.commit()
     
-    # Ambil dari tabel terpisah
     assets_cover = AssetCover.query.order_by(AssetCover.id.desc()).all()
     assets_twibbon = AssetTwibbon.query.order_by(AssetTwibbon.id.desc()).all()
     
     return render_template('design.html', active_page='design', config=config, assets_cover=assets_cover, assets_twibbon=assets_twibbon)
 
-# ROUTE RENDER GAMBAR (Updated untuk support 2 tabel)
 @app.route('/img_render/<tipe>/<int:id>')
 def tampilkan_gambar(tipe, id):
-    # Cek tipe untuk menentukan tabel mana yang diambil
     if tipe == 'cover':
         asset = AssetCover.query.get_or_404(id)
     elif tipe == 'twibbon':
@@ -162,10 +167,8 @@ def add_asset():
         try:
             filename = secure_filename(file.filename)
             file_data = file.read()
-            
             new_id = None
             
-            # Pisahkan logika simpan berdasarkan tipe
             if tipe == 'cover':
                 new_asset = AssetCover(
                     judul=filename,
@@ -216,7 +219,6 @@ def save_design_config():
     db.session.commit()
     return jsonify({'status': 'success', 'message': 'Konfigurasi tersimpan'})
 
-# Update Delete untuk menerima TIPE agar tahu hapus dari tabel mana
 @app.route('/api/delete_asset/<tipe>/<int:id>', methods=['POST'])
 def delete_asset(tipe, id):
     try:
@@ -234,7 +236,6 @@ def delete_asset(tipe, id):
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-# --- ROUTES FITUR LAIN ---
 @app.route('/tamu')
 def tamu():
     return render_template('tamu.html', active_page='tamu', tamu=Tamu.query.order_by(Tamu.id.desc()).all())
@@ -274,20 +275,13 @@ def hapus_tamu(id):
 
 @app.route('/rundown')
 def rundown():
-    # Menghapus logika pengecekan Rundown.query.count() == 0 
-    # agar tidak otomatis menambah data "Registrasi" saat tabel kosong.
     return render_template('rundown.html', active_page='rundown', items=Rundown.query.order_by(Rundown.waktu).all())
 
 @app.route('/gifts', methods=['GET', 'POST'])
 def gifts():
     if request.method == 'POST':
-        # Mengambil data dari form
-        # Catatan: di gifts.html name input adalah 'nama' dan 'no_amplop'
-        nama = request.form.get('nama')
+        nama = request.form.get('nama_pengirim') # Perbaikan: menyesuaikan form HTML (sebelumnya 'nama')
         no_amplop = request.form.get('no_amplop')
-        
-        # Karena di form input cepat tidak ada pilihan 'jenis', 
-        # kita beri default 'Amplop' atau sesuaikan dengan kebutuhan
         jenis_hadiah = request.form.get('jenis', 'Amplop') 
 
         if nama and no_amplop:
@@ -306,14 +300,10 @@ def gifts():
             
         return redirect(url_for('gifts'))
 
-    # Bagian GET: Mengambil semua data untuk ditampilkan di tabel
     hadiah_list = Hadiah.query.order_by(Hadiah.id.desc()).all()
     total_hadiah = Hadiah.query.count()
     
-    return render_template('gifts.html', 
-                           active_page='gifts', 
-                           hadiah=hadiah_list, 
-                           total=total_hadiah)
+    return render_template('gifts.html', active_page='gifts', hadiah=hadiah_list, total=total_hadiah)
 
 @app.route('/crew', methods=['GET', 'POST'])
 def crew():
@@ -430,7 +420,6 @@ def hapus_rundown(id):
         item = Rundown.query.get_or_404(id)
         db.session.delete(item)
         db.session.commit()
-        # Reset ID jika kosong (MySQL)
         if Rundown.query.count() == 0:
             db.session.execute(text("ALTER TABLE rundown AUTO_INCREMENT = 1"))
             db.session.commit()
@@ -444,18 +433,11 @@ def hapus_rundown(id):
 def scan_page():
     return render_template('scan.html', active_page='scan')
 
-# Contoh rute untuk memproses hasil scan dari frontend
 @app.route('/api/process-scan', methods=['POST'])
 def process_scan_api():
     data = request.get_json()
     barcode_value = data.get('barcode')
 
-    # Lakukan logika Anda di sini, misalnya:
-    # - Cari tamu berdasarkan barcode_value
-    # - Tandai tamu sudah hadir
-    # - Catat kado, dll.
-
-    # Contoh respons
     if barcode_value:
         flash(f"Barcode '{barcode_value}' berhasil diproses!", "success")
         return {'status': 'success', 'message': f'Data {barcode_value} diproses.'}
@@ -463,25 +445,180 @@ def process_scan_api():
         flash("Gagal memproses barcode.", "error")
         return {'status': 'error', 'message': 'Tidak ada data barcode.'}, 400
     
-# Contoh logic di Flask route
 @app.route('/invitation/<slug>')
 def view_invitation(slug):
-    # Ambil data dari DB dulu
-    config = get_config(slug)
+    # Logika untuk mengambil config invitation (sementara menggunakan dummy/default)
+    config = DesignConfig.query.first()
+    if not config:
+        config = DesignConfig() # Default
     
     # JIKA ada parameter di URL (berasal dari tombol preview), tindih data DB
-    preview_mode = request.args.get('preview')
-    if preview_mode:
+    if request.args.get('preview'):
         config.judul_mempelai = request.args.get('nama')
         config.tanggal_acara = request.args.get('tanggal')
         config.tema_warna = request.args.get('tema')
-        # cover_url = request.args.get('cover')
     
     return render_template('invitation.html', config=config)
 
+# ==========================================
+# API MOBILE SERVICES (CREW & ROLES)
+# ==========================================
+
+# 1. API LOGIN CREW
+@app.route('/api/mobile/crew/login', methods=['POST'])
+def api_crew_login():
+    data = request.get_json()
+    kode_akses = data.get('kode_akses') # Input dari mobile app
+
+    if not kode_akses:
+        return jsonify({'status': 'error', 'message': 'Kode akses harus diisi'}), 400
+
+    # Ambil semua crew untuk dicocokkan kodenya
+    all_crew = Crew.query.all()
+    user_found = None
+
+    for c in all_crew:
+        if c.no_hp and len(c.no_hp) >= 4:
+            generated_code = f"{c.no_hp[-4:]}ASR"
+            if generated_code == kode_akses:
+                user_found = c
+                break
+    
+    if user_found:
+        if user_found.status != 'Active':
+             return jsonify({'status': 'error', 'message': 'Akun Anda sedang dinonaktifkan (Offline).'}), 403
+
+        return jsonify({
+            'status': 'success',
+            'message': 'Login berhasil',
+            'data': user_found.to_dict()
+        })
+    else:
+        return jsonify({'status': 'error', 'message': 'Kode akses tidak valid'}), 401
+
+# 2. GET LIST CREW
+@app.route('/api/mobile/crew', methods=['GET'])
+def api_get_crew():
+    crews = Crew.query.all()
+    return jsonify({
+        'status': 'success',
+        'total': len(crews),
+        'data': [c.to_dict() for c in crews]
+    })
+
+# 3. GET DETAIL CREW
+@app.route('/api/mobile/crew/<int:id>', methods=['GET'])
+def api_get_crew_detail(id):
+    c = Crew.query.get(id)
+    if not c:
+        return jsonify({'status': 'error', 'message': 'Crew tidak ditemukan'}), 404
+    return jsonify({'status': 'success', 'data': c.to_dict()})
+
+# 4. TAMBAH CREW BARU (POST)
+@app.route('/api/mobile/crew', methods=['POST'])
+def api_add_crew():
+    data = request.get_json()
+    
+    if not data.get('nama') or not data.get('no_hp'):
+        return jsonify({'status': 'error', 'message': 'Nama dan No HP wajib diisi'}), 400
+
+    try:
+        new_crew = Crew(
+            nama=data.get('nama'),
+            peran=data.get('peran', 'Usher'),
+            no_hp=data.get('no_hp'),
+            status='Active'
+        )
+        db.session.add(new_crew)
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'Crew berhasil ditambahkan', 'data': new_crew.to_dict()}), 201
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# 5. EDIT DATA CREW (PUT)
+@app.route('/api/mobile/crew/<int:id>', methods=['PUT'])
+def api_edit_crew(id):
+    c = Crew.query.get(id)
+    if not c:
+        return jsonify({'status': 'error', 'message': 'Crew tidak ditemukan'}), 404
+    
+    data = request.get_json()
+    try:
+        if 'nama' in data: c.nama = data['nama']
+        if 'peran' in data: c.peran = data['peran']
+        if 'no_hp' in data: c.no_hp = data['no_hp']
+        if 'status' in data: c.status = data['status'] # Active / Offline
+        
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'Data crew diperbarui', 'data': c.to_dict()})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# 6. HAPUS CREW (DELETE)
+@app.route('/api/mobile/crew/<int:id>', methods=['DELETE'])
+def api_delete_crew(id):
+    c = Crew.query.get(id)
+    if not c:
+        return jsonify({'status': 'error', 'message': 'Crew tidak ditemukan'}), 404
+    
+    try:
+        db.session.delete(c)
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': 'Crew berhasil dihapus'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+# 7. BULK ACTION (Active All / Offline All)
+@app.route('/api/mobile/crew/status/all', methods=['POST'])
+def api_bulk_status_crew():
+    data = request.get_json()
+    target_status = data.get('status') # 'Active' atau 'Offline'
+    
+    if target_status not in ['Active', 'Offline']:
+        return jsonify({'status': 'error', 'message': 'Status tidak valid. Gunakan Active atau Offline'}), 400
+
+    try:
+        crews = Crew.query.all()
+        for c in crews:
+            c.status = target_status
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': f'Semua crew diubah menjadi {target_status}'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+@app.route('/api/mobile/login-phone', methods=['POST'])
+def api_login_phone():
+    try:
+        data = request.get_json()
+        phone_number = data.get('phone_number')
+
+        if not phone_number:
+            return jsonify({'status': 'error', 'message': 'Nomor HP wajib diisi'}), 400
+
+        # Cari crew berdasarkan no_hp
+        # Pastikan kolom no_hp di database formatnya sama (misal 0812 vs 62812)
+        user = Crew.query.filter_by(no_hp=phone_number).first()
+
+        if user:
+            if user.status != 'Active':
+                 return jsonify({'status': 'error', 'message': 'Akun dinonaktifkan.'}), 403
+
+            return jsonify({
+                'status': 'success',
+                'message': 'Login Berhasil',
+                'data': user.to_dict()
+            })
+        else:
+            return jsonify({
+                'status': 'error', 
+                'message': 'Nomor HP tidak ditemukan.'
+            }), 404
+
+    except Exception as e:
+        print(f"Error Login: {e}")
+        return jsonify({'status': 'error', 'message': f'Server Error: {str(e)}'}), 500
+
 if __name__ == "__main__":
     with app.app_context():
-        # Karena model berubah, Anda harus menghapus tabel lama di database manager
-        # agar tabel 'asset_cover' dan 'asset_twibbon' baru bisa dibuat.
         db.create_all()
     app.run(debug=True)
